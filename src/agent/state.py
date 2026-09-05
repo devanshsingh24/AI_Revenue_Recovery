@@ -12,6 +12,7 @@ class RecoveryState(TypedDict, total=False):
     amount: float
     currency: str
     decline_reason: str
+    is_hard_decline: bool
     payment_method: Optional[str]
     customer_id: Optional[str]
     customer_segment: Optional[str]

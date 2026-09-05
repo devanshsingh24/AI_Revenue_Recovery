@@ -1,0 +1,31 @@
+# FREE-tier Render blueprint: one Web Service serving the EXISTING read-only
+# dashboard API (backend/dashboard_api.py) that the Streamlit frontend calls.
+# No code changes: build seeds disposable SQLite databases, start serves them.
+# The webhook app (backend/main.py) is NOT served here — one free service =
+# one process. See README deployment notes / final report for details.
+services:
+  - type: web
+    name: revenue-recovery-api
+    runtime: python
+    plan: free
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      RAZORPAY_WEBHOOK_SECRET=build-only-dummy RAZORPAY_DRY_RUN=true
+      DATABASE_URL="sqlite:///./local.db"
+      python -c "from src.db import init_db; init_db()" &&
+      RAZORPAY_WEBHOOK_SECRET=build-only-dummy RAZORPAY_DRY_RUN=true
+      DATABASE_URL="sqlite:///./local.db"
+      DEMO_DATABASE_URL="sqlite:///./demo_revenue_recovery.db"
+      python scripts/seed_demo_data.py --n 1200
+    startCommand: uvicorn backend.dashboard_api:dashboard_app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: RAZORPAY_DRY_RUN
+        value: "true"
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite:///./local.db
+      - key: DEMO_DATABASE_URL
+        value: sqlite:///./demo_revenue_recovery.db
+      - key: MODEL_PATH
+        value: models/recovery_catboost.cbm

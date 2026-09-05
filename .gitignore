@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -216,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# SQLite databases (regenerable: Render seeds them at build via
+# scripts/seed_demo_data.py + src.db.init_db; Streamlit Cloud needs no DB file)
+*.db

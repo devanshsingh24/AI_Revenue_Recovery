@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from src.guardrails import evaluate_policy
 from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
@@ -26,11 +26,16 @@ def diagnose_node(state: RecoveryState) -> RecoveryState:
         "insufficient_funds": "customer_liquidity_issue",
         "bank_decline": "issuer_or_bank_decline",
     }.get(reason, "unknown_payment_failure")
-    return {**state, "diagnosis": {
-        "decline_reason": reason,
-        "classification": classification,
-        "is_hard_decline": reason in {"card_expired", "mandate_revoked", "disputed", "fraud_flag"},
-    }}
+    is_hard_decline = reason in {"card_expired", "mandate_revoked", "disputed", "fraud_flag"}
+    return {
+        **state,
+        "is_hard_decline": is_hard_decline,  # top-level: this is what predict_node/FEATURE_COLS read
+        "diagnosis": {
+            "decline_reason": reason,
+            "classification": classification,
+            "is_hard_decline": is_hard_decline,  # kept here too for anything reading diagnosis as a unit
+        },
+    }
 
 
 def predict_node(state: RecoveryState, model: Any, feature_cols: List[str]) -> RecoveryState:
@@ -67,29 +72,25 @@ def decide_node(state: RecoveryState) -> RecoveryState:
     }}
 
 
+
 def policy_validate_node(state: RecoveryState) -> RecoveryState:
     """HARD GATE: only node allowed to set final_action."""
     ml_action = state.get("ml_suggested_action", "stop")
-    reason = str(state.get("decline_reason") or "unknown")
-    amount = float(state.get("amount") or 0.0)
-    retries = int(state.get("retry_count_so_far") or 0)
-    final_action, status, policy_reason = ml_action, "allowed", "ML recommendation passed all policy checks."
-
-    if reason == "fraud_flag":
-        final_action, status, policy_reason = "stop", "blocked", "Fraud/security signal: automatic recovery is prohibited."
-    elif reason == "disputed":
-        final_action, status, policy_reason = "escalation", "overridden", "Disputed payment requires human review."
-    elif retries >= 3 and ml_action in {"retry_2h", "retry_24h"}:
-        final_action, status, policy_reason = "payment_link", "overridden", "Retry limit reached; retry action is blocked."
-    elif amount > 50_000 and ml_action != "escalation":
-        final_action, status, policy_reason = "escalation", "overridden", "High-value payment requires human approval."
-    elif reason == "mandate_revoked" and ml_action in {"retry_2h", "retry_24h"}:
-        final_action, status, policy_reason = "payment_link", "overridden", "Mandate revoked; bare retry is blocked."
-    elif reason == "card_expired" and ml_action in {"retry_2h", "retry_24h"}:
-        final_action, status, policy_reason = "payment_link", "overridden", "Expired card requires customer instrument update."
-
-    return {**state, "final_action": final_action, "policy_status": status, "policy_reason": policy_reason}
-
+    result = evaluate_policy(
+        decline_reason=state.get("decline_reason"),
+        amount=state.get("amount"),
+        retry_count_so_far=state.get("retry_count_so_far"),
+        ml_action=ml_action,
+    )
+    updated = {
+        **state,
+        "final_action": result["final_action"],
+        "policy_status": result["status"],
+        "policy_reason": result["reason"],
+    }
+    if result["final_action"] == "stop":
+        updated["execution_status"] = "not_executed"
+    return updated
 
 def execute_node(state: RecoveryState, razorpay_client: Any) -> RecoveryState:
     final_action = state.get("final_action", "stop")

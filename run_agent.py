@@ -1,24 +1,8 @@
 from __future__ import annotations
-import argparse, json, os
-from pathlib import Path
-from catboost import CatBoostClassifier
-from src.agent.graph import build_graph
+import argparse, json
+from src.agent.graph import build_graph_from_trained_model, run_recovery
 from src.razorpay_client import RazorpayClient
-
-FEATURE_COLS = [
-    "amount", "decline_reason", "is_hard_decline", "payment_method", "customer_segment",
-    "customer_tenure_months", "days_overdue", "retry_count_so_far",
-    "past_payment_success_rate", "historical_engagement_score",
-    "previous_failed_payments", "previous_recovered_payments", "recovery_action",
-]
-
-def load_model():
-    path = Path(os.getenv("MODEL_PATH", "models/recovery_catboost.cbm"))
-    if not path.exists():
-        raise FileNotFoundError(f"CatBoost model not found at {path}. Set MODEL_PATH or export your model there.")
-    model = CatBoostClassifier()
-    model.load_model(str(path))
-    return model
+from src.audit import persist_audit_record
 
 def normalize_input(payload: dict) -> dict:
     entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
@@ -39,20 +23,33 @@ def normalize_input(payload: dict) -> dict:
         "previous_recovered_payments": int(notes.get("previous_recovered_payments", 0)),
     }
 
-def main():
+
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--payload", required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     with open(args.payload, "r", encoding="utf-8") as f:
         payload = json.load(f)
-    model = load_model()
+
     client = RazorpayClient()
-    graph = build_graph(model, FEATURE_COLS, client)
-    result = graph.invoke(normalize_input(payload))
+    graph = build_graph_from_trained_model(client)  # loads model + feature_cols from train_policy.py, one place
+    result = run_recovery(graph, normalize_input(payload))  # error-contained: always returns an audit_record
+
+    # CLI path must persist too — webhook_handler isn't the only entry point.
+    # Best-effort: never crash the CLI when the database is unavailable locally.
+    persist_error = None
+    try:
+        persist_audit_record(result)
+    except Exception as exc:  # noqa: BLE001 - surface, don't fail the CLI
+        persist_error = f"{type(exc).__name__}: {exc}"
+
     print(json.dumps({"ml_suggested_action": result.get("ml_suggested_action"),
                       "policy_status": result.get("policy_status"), "policy_reason": result.get("policy_reason"),
                       "final_action": result.get("final_action"), "execution_status": result.get("execution_status"),
+                      "errors": result.get("errors"),
+                      "persist_error": persist_error,
                       "audit_record": result.get("audit_record")}, indent=2, default=str))
+
 
 if __name__ == "__main__":
     main()

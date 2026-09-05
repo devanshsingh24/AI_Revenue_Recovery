@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from datetime import datetime, timedelta
 
 np.random.seed(42)
@@ -132,7 +133,14 @@ for _, cust in customers.iterrows():
 
 df = pd.DataFrame(rows)
 df.insert(0, "record_id", [f"REC{i:06d}" for i in range(len(df))])
-df.to_csv("recovery_full_dataset.csv", index=False)
+
+# write next to this script, under data/ — resolves the root-vs-data/ mismatch
+# regardless of the working directory the script is invoked from
+OUT_DIR = Path(__file__).resolve().parent / "data"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+OUT_PATH = OUT_DIR / "recovery_full_dataset.csv"
+df.to_csv(OUT_PATH, index=False)
 
 print("Total records:", len(df))
 print("Recovery rate (legacy/logged policy):", round(df['recovered'].mean(), 3))
+print("Wrote dataset to:", OUT_PATH)

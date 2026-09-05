@@ -1,0 +1,25 @@
+{
+  "feature_cols": [
+    "amount",
+    "decline_reason",
+    "is_hard_decline",
+    "payment_method",
+    "customer_segment",
+    "customer_tenure_months",
+    "days_overdue",
+    "retry_count_so_far",
+    "past_payment_success_rate",
+    "historical_engagement_score",
+    "previous_failed_payments",
+    "previous_recovered_payments",
+    "recovery_action"
+  ],
+  "cat_features": [
+    "decline_reason",
+    "payment_method",
+    "customer_segment",
+    "recovery_action"
+  ],
+  "held_out_roc_auc": 0.707,
+  "trained_at": "2026-09-05T14:06:23.321620+00:00"
+}

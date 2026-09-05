@@ -1,30 +1,72 @@
-# --- Core loop (lines 70–113) ---
+"""Batch evaluation over the existing synthetic dataset.
+
+Reuses the tested layers (``train_policy.score_all_actions`` +
+``src.guardrails.apply_guardrails``) instead of redefining policy logic.
+Writes an audit CSV under ``logs/``. No live Razorpay execution.
+"""
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
 import pandas as pd
-audit_records = []
-override_count = 0
-blocked_count = 0
-df = pd.read_csv("data/recovery_full_dataset.csv")
-for idx, row in df.iterrows():
-    # 1. ML recommendation
-    ml_result = ml_policy(row, model=model)
-    ml_action = ml_result["suggested_action"]
 
-    # 2. Guardrails
-    policy_result = apply_guardrails(row, ml_action)
-    final_action = policy_result["final_action"]
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_DATA = BASE_DIR / "data" / "recovery_full_dataset.csv"
+DEFAULT_OUT = BASE_DIR / "logs" / "recovery_audit_log.csv"
 
-    if policy_result["status"] == "overridden":
-        override_count += 1
-    elif policy_result["status"] == "blocked":
-        blocked_count += 1
 
-    # 3. Audit record (always written)
-    record = create_audit_record(row, ml_result, policy_result)   # ← cleaner
-    audit_records.append(record)
+def run_batch(data_path: Path = DEFAULT_DATA, limit: int | None = None) -> dict:
+    from train_policy import load_model, score_all_actions
+    from src.guardrails import apply_guardrails
 
-    # 4. Execution (optional)
-    if execute:
-        exec_result = execute_final_action(final_action, row.to_dict())
+    model, _ = load_model()
+    df = pd.read_csv(data_path)
+    if limit is not None:
+        df = df.head(limit)
 
-# Persist audit trail
-out_path = save_audit_log(audit_records, "logs/recovery_audit_log.csv")
+    audit_records = []
+    override_count = 0
+    blocked_count = 0
+    for _, row in df.iterrows():
+        record = row.to_dict()
+        ml_action = score_all_actions(model, record)
+        policy_result = apply_guardrails(record, ml_action)
+        if policy_result["status"] == "overridden":
+            override_count += 1
+        elif policy_result["status"] == "blocked":
+            blocked_count += 1
+        audit_records.append({
+            "record_id": record.get("record_id"),
+            "ml_suggested_action": ml_action,
+            "final_action": policy_result["final_action"],
+            "policy_status": policy_result["status"],
+            "policy_reason": policy_result["reason"],
+        })
+    return {
+        "records": audit_records,
+        "override_count": override_count,
+        "blocked_count": blocked_count,
+        "total": len(audit_records),
+    }
+
+
+def main(argv=None) -> Path:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data", default=str(DEFAULT_DATA))
+    parser.add_argument("--out", default=str(DEFAULT_OUT))
+    parser.add_argument("--limit", type=int, default=None)
+    args = parser.parse_args(argv)
+
+    summary = run_batch(Path(args.data), args.limit)
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(summary["records"]).to_csv(out_path, index=False)
+    print(f"Evaluated {summary['total']} records "
+          f"(overridden={summary['override_count']}, blocked={summary['blocked_count']}). "
+          f"Wrote audit log to: {out_path}")
+    return out_path
+
+
+if __name__ == "__main__":
+    main()
