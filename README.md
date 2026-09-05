@@ -1,5 +1,80 @@
 # AI Revenue Recovery System
 
+## Try the Demo on Your Machine (localhost)
+
+No Razorpay account or credentials needed — the demo runs fully offline in
+dry-run mode with a pre-trained model and disposable SQLite databases.
+
+**Prerequisites:** Python 3.11 and Git.
+
+```bash
+git clone https://github.com/devanshsingh24/AI_Revenue_Recovery.git
+cd AI_Revenue_Recovery
+python -m venv .venv
+# Windows (PowerShell):  .venv\Scripts\Activate.ps1
+# macOS / Linux:         source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**1. Create your local env file** (never commit it — `.env` is git-ignored):
+
+```bash
+cp .env.example .env
+```
+
+Then open `.env` and make sure these two lines are set (any random string
+works as the webhook secret for the demo — it is only checked, never used
+to reach Razorpay):
+
+```
+RAZORPAY_DRY_RUN=true
+RAZORPAY_WEBHOOK_SECRET=local-demo-dummy-secret
+```
+
+**2. Create the databases** (one throwaway command; safe to re-run):
+
+```bash
+# Windows (PowerShell):
+$env:RAZORPAY_WEBHOOK_SECRET = "local-demo-dummy-secret"
+$env:RAZORPAY_DRY_RUN = "true"
+$env:DATABASE_URL = "sqlite:///./local.db"
+$env:DEMO_DATABASE_URL = "sqlite:///./demo_revenue_recovery.db"
+python -c "from src.db import init_db; init_db()"
+python scripts/seed_demo_data.py --n 1200
+```
+
+```bash
+# macOS / Linux:
+export RAZORPAY_WEBHOOK_SECRET="local-demo-dummy-secret" RAZORPAY_DRY_RUN="true"
+export DATABASE_URL="sqlite:///./local.db" DEMO_DATABASE_URL="sqlite:///./demo_revenue_recovery.db"
+python -c "from src.db import init_db; init_db()"
+python scripts/seed_demo_data.py --n 1200
+```
+
+**3. Start the backend API** (terminal 1 — keep it running):
+
+```bash
+uvicorn backend.dashboard_api:dashboard_app --port 8001
+```
+
+Check it works: open http://127.0.0.1:8001/health (expect `{"status":"ok"}`).
+
+**4. Start the dashboard** (terminal 2 — keep it running):
+
+```bash
+streamlit run dashboard/app.py
+```
+
+**5. View the demo:** open http://localhost:8501 in your browser.
+Keep **Demo mode ON** in the sidebar (it is on by default) — you will see
+Overview KPIs, Recovery Detail, Audit Trail, and Webhook Events from the
+seeded demo data. Flip Demo mode OFF only if you have wired a real
+production database; otherwise leave it on.
+
+**Stopping:** press `Ctrl+C` in both terminals. To start over with fresh
+demo data, just re-run the seed command from step 2 (it rebuilds the demo
+database from scratch — production data is never touched).
+
 ## Architecture Overview
 
 ```
