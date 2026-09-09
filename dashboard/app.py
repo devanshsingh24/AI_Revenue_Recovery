@@ -24,7 +24,17 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
-from dashboard import api_client
+# Ensure both repo root (for `src`, `data`, `train_policy`) and this folder
+# (for `api_client`, `batch_eval`) are importable both locally
+# (`streamlit run dashboard/app.py` from root) and on Streamlit Cloud
+# (script dir on sys.path, root not guaranteed).
+_FILE_DIR = Path(__file__).resolve().parent
+_ROOT_DIR = _FILE_DIR.parent
+for _p in (str(_FILE_DIR), str(_ROOT_DIR)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+import api_client
 
 st.set_page_config(layout="wide", page_title="RR.AI", page_icon="⚡")
 
@@ -248,7 +258,10 @@ if page == "Overview":
             if st.button("Run Live Batch Evaluation", key="batch_run"):
                 import time as _time
 
-                from dashboard import batch_eval
+                try:
+                    from dashboard import batch_eval
+                except ImportError:
+                    import batch_eval
 
                 try:
                     bar = st.progress(0, text="Scoring records...")

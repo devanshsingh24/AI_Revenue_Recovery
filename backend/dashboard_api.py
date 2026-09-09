@@ -215,6 +215,11 @@ def model_info() -> Dict[str, Any]:
     return _read_model_info()
 
 
+@dashboard_app.get("/")
+def root() -> Dict[str, str]:
+    return {"status": "ok", "health": "/health", "docs": "/docs"}
+
+
 @dashboard_app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
