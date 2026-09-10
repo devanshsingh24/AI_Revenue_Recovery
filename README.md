@@ -1,5 +1,11 @@
 # AI Revenue Recovery System
 
+> **Live demo:** dashboard is deployed at
+> https://airevenuerecovery-ebgxx8nmhtm29jwjahk4ll.streamlit.app/
+>
+> Backend (FastAPI on Render) URL is not hardcoded — the dashboard reads it
+> from the `API_BASE_URL` secret/env var.
+
 ## Try the Demo on Your Machine (localhost)
 
 No Razorpay account or credentials needed — the demo runs fully offline in
