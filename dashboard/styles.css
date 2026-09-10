@@ -12,6 +12,10 @@ button, input, select, textarea, option,
 [data-testid="stMetric"], [data-testid="stMetricLabel"], [data-testid="stMetricValue"],
 .stCaption, .stInfo, .stAlert,
 .stDataFrame, [data-testid="stTable"] { font-family: 'Inter', system-ui, sans-serif !important; }
+/* Never override the Material Symbols icon font: doing so renders ligature
+   names (e.g. "double_arrow_right") as visible text instead of glyphs. */
+.material-symbols-rounded, [class*="material-symbols"],
+[data-testid="stCollapsedControl"] span { font-family: 'Material Symbols Rounded', 'Material Symbols', sans-serif !important; }
 [data-testid="stAppViewContainer"] { background: #f3f5f9; }
 /* Hide Streamlit default chrome: menu, footer, top decoration */
 #MainMenu { visibility: hidden; }
@@ -62,8 +66,14 @@ a { color: #2456d6; }
 /* Date inputs: dark-grey text inside the box */
 [data-testid="stDateInput"] input { color: #344054 !important; }
 [data-testid="stSidebar"] [data-testid="stDateInput"] label { color: #c9cede !important; }
-/* Native sidebar collapse control removed: << / >> buttons own this job now */
-[data-testid="stSidebarCollapseButton"] { display: none !important; }
+/* Native sidebar collapse control removed: << / >> buttons own this job now.
+   Covers both the in-sidebar button and the floating collapsed control shown
+   when the sidebar is hidden — the latter renders a Material Symbol ligature
+   (e.g. "double_arrow_right") as raw text once the Inter override below
+   replaces its icon font, so it must stay hidden too. */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stCollapsedControl"],
+[data-testid="stSidebarCollapsedControl"] { display: none !important; }
 [data-testid="stSidebar"] [data-testid^="stBaseButton"] button {
   background: #d92d20 !important; color: #ffffff !important;
   border: none !important; font-weight: 600 !important; }
